@@ -1,0 +1,101 @@
+---
+title: "Final Project"
+author: "Jake Ahearne"
+date: "8/22/2021"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+We start by loading in the required libraries.
+
+```{r libraries}
+library(caret)
+library(lattice)
+library(ggplot2)
+library(kernlab)
+library(rattle)
+library(corrplot)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(gbm)
+```
+Then we load our data as pml_training and pml_testing
+```{r load, echo=TRUE}
+pml_training <- read.csv("C:/Users/jaked/OneDrive/Desktop/stats/pml-training.csv")
+pml_testing <- read.csv("C:/Users/jaked/OneDrive/Desktop/stats/pml-testing.csv")
+```
+```{code1, echo=TRUE}
+
+dim(pml_training)
+dim(pml_testing)
+```
+Both the testing and the training set show they have 160 variables. Now with the data loaded in we will go ahead and clean up the data by removing all variables with non-zero variance.
+```{r code2, echo=TRUE}
+nzv <- nearZeroVar(pml_training)
+pml_training <- pml_training[,-nzv]
+pml_testing <- pml_testing[, -nzv]
+
+dim(pml_training)
+dim(pml_testing)
+```
+The cleaning has left us with now 100 variables. Though the first 5 variables are used for identification, so those too must be removed.
+
+```{r code3, echo=TRUE}
+pml_training <- pml_training[,-(1:5)]
+pml_testing <- pml_testing[, -(1:5)]
+
+dim(pml_training)
+dim(pml_testing)
+```
+Finally we must dea with all NA variables still left in our data.
+```{r code4, echo=TRUE}
+na <- sapply(pml_training,function(x) mean(is.na(x))) > 0.95
+pml_training <- pml_training[,na==FALSE]
+pml_testing <- pml_testing[, na==FALSE]
+
+dim(pml_training)
+dim(pml_testing)
+```
+Now our data is finished cleaning with only 54 variables needed for analysis.
+
+```{r code5, echo=FALSE}
+matrix <- cor(pml_training[, -54])
+corrplot(matrix, order = "FPC", type = "upper", tl.cex = 0.3)
+```
+Now we will explore a decision tree model. First we will create a data partition with a 60/40 split. Then we will use decision trees and random forests, and after they are generated we will determine the best model to use.
+```{r code6, echo=TRUE}
+partitioned <- createDataPartition(pml_training$classe, p = 0.6, list = FALSE)
+trainer <- pml_training[partitioned, ]
+tester <- pml_training[-partitioned, ]
+dim(trainer)
+```
+Decision Tree:
+```{r code7, echo=TRUE}
+tree <- rpart(classe ~ ., data = trainer, method = "class")
+fancyRpartPlot(tree)
+
+pred_tree <- predict(tree, tester, type = "class")
+confusionMatrix(pred_tree, factor(tester$classe))
+```
+Random Forest:
+```{r code8, echo=TRUE}
+trainer$classe = as.character(trainer$classe)
+trainer$classe = factor(trainer$classe)
+rand_for <- randomForest(classe ~., data = trainer)
+rand_for_pred <- predict(rand_for, tester, type = "class")
+confusionMatrix(rand_for_pred, factor(tester$classe))
+```
+In conclusion, with Random Forest having an accuracy of 0.9957, it will prove to have the best accuracy to use for the true testing set in the final quiz.
+```{r code9, echo=TRUE}
+pml_training$classe = as.character(pml_training$classe)
+pml_training$classe = factor(pml_training$classe)
+final <- randomForest(classe ~., data = pml_training)
+final_result <- predict(final, pml_testing, type = "class")
+final_result
+```
